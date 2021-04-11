@@ -6,6 +6,7 @@
 ___
 + 소개:
   - 서경대학교 김성석교수님 연구실 전용 *GitHub*입니다.
+
 + 구성인원:
   - 
 <br/>
@@ -23,10 +24,10 @@ ___
 <br/>
 
 + 한글 이미지 전처리 Program
-  - **
+  - [*전처리 directory*](https://github.com/ChangJinMoon/DI_15to17/tree/master/Codes/%ED%95%9C%EA%B8%80%20%EC%9D%B4%EB%AF%B8%EC%A7%80%20%EC%A0%84%EC%B2%98%EB%A6%AC)
   - *Python*
 <br/>
 
 + *Deep Learning Model*
-  - **
+  - [*Model directory*](https://github.com/ChangJinMoon/DI_15to17/tree/master/Codes/Model)
   - *Tensorflow*
