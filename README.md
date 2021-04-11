@@ -15,12 +15,12 @@ ___
 ## 온라인 한글 인식 프로그램
 ___
 + *Client*:
-  - [*CanvasTest directory*](https://github.com/ChangJinMoon/DI_15to17/tree/master/Codes/Server)
+  - [*CanvasTest directory*](https://github.com/ChangJinMoon/DI_15to17/tree/master/Codes/%ED%95%9C%EA%B8%80Collector)
   - *Android*
 <br/>
 
 + *Server*:
-  - [*Sever directory*](https://github.com/ChangJinMoon/DI_15to17/tree/master/Codes/%ED%95%9C%EA%B8%80Collector)
+  - [*Sever directory*](https://github.com/ChangJinMoon/DI_15to17/tree/master/Codes/Server)
   - *Java*
 <br/>
 
