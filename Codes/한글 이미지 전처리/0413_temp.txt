@@ -1,0 +1,1898 @@
+# -*- coding: utf-8 -*-
+
+"""
+
+모음 후보 알고리즘 코드
+
+순서도
+
+1. '누'를 테스트로 진행
+
+2.각 획 좌표 받아서 저장
+
+
+
+3.저장된 좌표를 사용하여 R 그리기
+
+    -결과 확인을 위해 그리기
+
+    -입력받은 위치를 기반으로
+
+    -획_stat 리스트 -> 4~12까지는 R에서의 획위치 저장(0,1)
+
+
+
+4.각 획의 SR 그리기
+
+    -직선획 구하기(Line이라는 리스트 생성후 복사)
+
+    -> 가로 세로도 저장(status 리스트 라인 갯수만큼 생성 가로,세로 and 만나는 직선 정보 저장)
+
+
+
+5.직선 판별 알고리즘 이용
+
+    -직선인 획만 저장
+
+    -가로 세로 직선인지 구분
+
+
+
+6.각 case별 구분 알고리즘 개별 함수로 구현
+
+    -해당 함수에서 인접 직선 판별 알고리즘 사용
+
+    -case별 기준 선을 중심으로 인접 직선을 구하여 모음 후보군 설정
+
+
+
+#해당 순서도에 따라 코드를 작성 보면서 이해하면 될 듯ㅎ
+
+
+
+Created on Sun Dec 27 18:26:30 2020
+
+
+
+@author: jin1004boy
+
+
+"""
+
+import os
+
+import numpy as np
+
+import cv2
+
+import shutil
+
+# import PIL as image
+
+# import temp_model
+
+
+# 테스트할 획데이터 받아오기
+
+
+line = list()  # 획 좌표를 받아올 리스트 선언
+
+line_stat = [[0 for i in range(13)] for j in range(10)]  # 획 좌표의 성질을 저장하기 위한 리스트 선언
+
+count = 0
+
+
+cordinate_data_directory_path = "C://Users//gunyoungkim/Desktop//coordinate"  # 좌표가 저장된 디렉토리 path
+bmp_data_directory_path = "C:/Users/gunyoungkim/Desktop/LAB/bmp"  # bmp가 있는 디렉토리 path
+SR_data_directory_path ="C:/Users/gunyoungkim/Desktop/LAB/SR" # SR이 저장되는 디렉토리 path
+R_data_directory_path ="C:/Users/gunyoungkim/Desktop/LAB/R" # R이 저장되는 디렉토리 path
+
+sr_list = os.listdir(SR_data_directory_path)
+
+for i in sr_list:
+    file_path = os.path.join(SR_data_directory_path, i)
+    os.remove(file_path)
+
+
+
+for i in range(5,7):
+    file_path = os.path.join(bmp_data_directory_path,'case' + str(i))
+    bmp_list = os.listdir(file_path)
+
+    for j in bmp_list:
+        if j[:9] == 'candidate':
+            shutil.rmtree(file_path +"/" + j)
+
+
+
+
+
+for i in range(1, 7):
+
+    file_path = os.path.join(bmp_data_directory_path, 'case' + str(i))
+
+    bmp_list = os.listdir(file_path)
+
+    if not bmp_list:
+        continue
+
+    else:
+        for j in bmp_list:
+            file_path_1 = os.path.join(file_path, j)
+            os.remove(file_path_1)
+
+
+# fill_read_line에서 읽어온 string을 float으로 변형해서 반환
+
+
+def return_x_or_y(line, x_or_y):
+    copy = str(line)
+
+    if len(copy) < 2:  # 공백 문자 삭제를 위한 코드
+
+        return 0.0
+
+    copy = copy.split(" ")
+
+    x = float(copy[0])
+
+    y = float(copy[1])
+
+    if x_or_y == 1:
+        return x
+
+    return y
+
+
+# 글자 좌표가 저장된 txt에서 획 좌표정보를 읽어 저장과 동시에 각 획의 SR을 구현하기위한 max min x,y를 저장
+
+
+def save_cordinate_data(path):
+    global count
+
+    max_x = 0.0
+
+    min_x = 1000.0
+
+    max_y = 0.0
+
+    min_y = 1000.0
+
+    line_count = 0
+
+    f = open(path, 'r')
+    line_col = list()
+
+    while True:
+
+        x = 0
+
+        y = 0
+
+        line_col.append(f.readline())
+
+        if not line_col[-1]:  # 텍스트의 끝 감지
+            break
+
+        x = return_x_or_y(line_col[-1], 1)
+
+        y = return_x_or_y(line_col[-1], 2)
+
+        if x == 0.0 and y == 0.0:  # 다른 획 정보의 구분 0,0을 만났을때
+
+            if line_count == 0:
+                continue
+            else:
+                line.append(line_col)
+                line_col = list()
+                print("\n다른획 저장 시작")
+
+                count += 1
+
+                line_count = 0
+
+                max_x = 0.0
+
+                min_x = 1000.0
+
+                max_y = 0.0
+
+                min_y = 1000.0
+
+        else:
+            # 최대 좌표 최소 좌표값을 구하기 위한
+            # print("x:"+str(x)+"\t,y:"+str(y))
+
+            if max_x < x:
+                max_x = x
+
+                line_stat[count][0] = line_count
+
+            if min_x > x:
+                min_x = x
+
+                line_stat[count][1] = line_count
+
+            if max_y < y:
+                max_y = y
+
+                line_stat[count][2] = line_count
+
+            if min_y > y:
+                min_y = y
+
+                line_stat[count][3] = line_count
+
+            line_count += 1
+
+    if line_count != 0:  # 공백의 텍스트가 왔을때 처리하기 위한 코드
+        count += 1
+        line.append(line_col)
+
+
+file_list = os.listdir(cordinate_data_directory_path)
+
+# 저장된 획데이터를 기반으로 R값의 위치를 받아내기
+
+R_width = 0
+
+R_height = 0
+
+max_min_data = [0.0 for i in range(4)]
+
+
+def return_R_size():
+    global R_width, R_height
+
+    max_x = 0.0
+
+    max_y = 0.0
+
+    min_x = 1000.0
+
+    min_y = 1000.0
+
+    for i in range(count):
+
+        if max_x < return_x_or_y(line[i][line_stat[i][0]], 1):
+            max_x = return_x_or_y(line[i][line_stat[i][0]], 1)
+
+        if min_x > return_x_or_y(line[i][line_stat[i][1]], 1):
+            min_x = return_x_or_y(line[i][line_stat[i][1]], 1)
+
+        if max_y < return_x_or_y(line[i][line_stat[i][2]], 2):
+            max_y = return_x_or_y(line[i][line_stat[i][2]], 2)
+
+        if min_y > return_x_or_y(line[i][line_stat[i][3]], 2):
+            min_y = return_x_or_y(line[i][line_stat[i][3]], 2)
+
+    max_min_data[0] = max_x
+
+    max_min_data[1] = min_x
+
+    max_min_data[2] = max_y
+
+    max_min_data[3] = min_y
+
+    R_width = int(max_x - min_x)
+
+    R_height = int(max_y - min_y)
+
+    print("\n-- R information --")
+    print("R의 max_x:" + str(max_min_data[0]) + "\t max_y:" + str(max_min_data[2]) + "\t min_x:" + str(
+        max_min_data[1]) + "\t min_y:" + str(max_min_data[3]))
+    print("R의 가로 길이:" + str(R_width) + "\t R의 세로 길이:" + str(R_height))
+
+
+# R의 가로,세로 길이를 토대로 R 기준점을 설정후 각 획이 지나는 위치 태그 붙이기
+
+def Check_R_location():
+    global R_width, R_height
+
+    # 비율 설정
+
+    width_rate = R_width / 3
+
+    height_rate = R_height / 3
+
+    # R의 최대 최소값 -> 수정 필요
+
+    min_x = max_min_data[1]
+
+    min_y = max_min_data[3]
+
+    # R의 위치를 거르기
+
+    for i in range(count):
+
+        for j in range(len(line[i])):
+
+            x = return_x_or_y(line[i][j], 1)
+
+            y = return_x_or_y(line[i][j], 2)
+
+            if (min_x + width_rate * 1) >= x:  # 0,3,6 위치의 경우
+
+                if (min_y + height_rate * 1) >= y:  # 0 위치인 경우
+
+                    line_stat[i][4] = 1
+
+                elif (min_y + height_rate * 2) >= y:  # 3 위치인 경우
+
+                    line_stat[i][7] = 1
+
+                else:  # 6 위치인 경우
+
+                    line_stat[i][10] = 1
+
+
+
+
+
+            elif (min_x + width_rate * 2) >= x:  # 1,4,7 위치의 경우
+
+                if (min_y + height_rate * 1) >= y:  # 1 위치인 경우
+
+                    line_stat[i][5] = 1
+
+                elif (min_y + height_rate * 2) >= y:  # 4 위치인 경우
+
+                    line_stat[i][8] = 1
+
+                else:  # 7 위치인 경우
+
+                    line_stat[i][11] = 1
+
+
+
+            else:  # 2,5,8 위치의 경우
+
+                if (min_y + height_rate * 1) >= y:  # 2 위치인 경우
+
+                    line_stat[i][6] = 1
+
+                elif (min_y + height_rate * 2) >= y:  # 5 위치인 경우
+
+                    line_stat[i][9] = 1
+
+                else:  # 8 위치인 경우
+
+                    line_stat[i][12] = 1
+
+                # 프로그램 첫 시작 부분
+
+
+print("program start...\n")
+
+print("--Save_coordiante--")
+for i in range(len(file_list)):
+    print("\n" + str(i) + "번째 파일 " + file_list[i] + "의 획정보 저장")
+    save_cordinate_data(cordinate_data_directory_path + '/' + file_list[i])
+    os.remove(cordinate_data_directory_path+'/'+file_list[i])#불러들인 좌표 파일은 저장후 디렉토리에서 삭제
+
+# 공백좌표 삭제를 위한 코드
+for i in range(len(line)):
+    line[i].pop(-1)
+
+return_R_size()
+Check_R_location()
+
+# 실행 결과를 보기 위한 코드
+
+print("\n-저장돤 획정보-")
+
+for k in range(count):
+    print(str(k) + "번째 line stat:", line_stat[k], '\n')
+
+# 이미지 처리로 결과보기
+
+img = np.zeros((R_height + 10, R_width + 10, 3), np.uint8) + 255
+
+width_rate = R_width / 3
+
+height_rate = R_height / 3
+
+base_x = int(max_min_data[1])
+base_y = int(max_min_data[3])
+
+# 글자그리기
+
+for i in range(count):
+
+    temp_x = 0.0
+
+    temp_y = 0.0
+
+    # SR 그리기
+
+    max_x = return_x_or_y(line[i][line_stat[i][0]], 1) - base_x
+
+    min_x = return_x_or_y(line[i][line_stat[i][1]], 1) - base_x
+
+    max_y = return_x_or_y(line[i][line_stat[i][2]], 2) - base_y
+
+    min_y = return_x_or_y(line[i][line_stat[i][3]], 2) - base_y
+
+    cv2.rectangle(img, (int(min_x), int(min_y)), (int(max_x), int(max_y)), (255, 0, 0), 1)
+
+    for j in range(len(line[i])):
+
+        x = return_x_or_y(line[i][j], 1) - base_x
+
+        y = return_x_or_y(line[i][j], 2) - base_y
+
+        if x == 0.0 and y == 0.0:
+            continue
+
+        if temp_x == 0.0 and temp_y == 0.0:
+            temp_x = x
+
+            temp_y = y
+
+        cv2.line(img, (int(temp_x), int(temp_y)), (int(x), int(y)), (0, 0, 0), 5)
+
+        temp_x = x
+
+        temp_y = y
+
+# R 그리기
+
+cv2.rectangle(img, (int(max_min_data[1] - base_x), int(max_min_data[3] - base_y)),
+              (int(max_min_data[0] - base_x), int(max_min_data[2] - base_y)),
+              (0, 0, 255), 2)
+
+cv2.line(img, (int(max_min_data[1] - base_x + width_rate * 1), int(max_min_data[3] - base_y + height_rate * 0)),
+         (int(max_min_data[1] - base_x + width_rate * 1), int(max_min_data[2] - base_y)), (0, 0, 255), 1)
+
+cv2.line(img, (int(max_min_data[1] - base_x + width_rate * 2), int(max_min_data[3] - base_y + height_rate * 0)),
+         (int(max_min_data[1] - base_x + width_rate * 2), int(max_min_data[2] - base_y)), (0, 0, 255), 1)
+
+cv2.line(img, (int(max_min_data[1] - base_x + width_rate * 0), int(max_min_data[3] - base_y + height_rate * 1)),
+         (int(max_min_data[0] - base_x), int(max_min_data[3] - base_y + height_rate * 1)), (0, 0, 255), 1)
+
+cv2.line(img, (int(max_min_data[1] - base_x + width_rate * 0), int(max_min_data[3] - base_y + height_rate * 2)),
+         (int(max_min_data[0] - base_x), int(max_min_data[3] - base_y + height_rate * 2)), (0, 0, 255), 1)
+
+cv2.imshow('test image', img)
+
+cv2.waitKey(0)
+
+cv2.destroyAllWindows()
+cv2.imwrite(R_data_directory_path + '/R_image.bmp', img)
+straight_line = list()
+
+
+def draw_SR(line_num, direction):  # SR 이미지 저장 함수 -> 0:직선 아님 1: 가로 2: 세로 EX) SR1_2 (두번째 획, 세로 )
+    temp_x = 0.0
+
+    temp_y = 0.0
+
+    max_x = return_x_or_y(line[i][line_stat[i][0]], 1)
+
+    min_x = return_x_or_y(line[i][line_stat[i][1]], 1)
+
+    max_y = return_x_or_y(line[i][line_stat[i][2]], 2)
+
+    min_y = return_x_or_y(line[i][line_stat[i][3]], 2)
+
+    SR_img = np.zeros((900, 900, 3), np.uint8) + 255
+    cv2.rectangle(SR_img, (int(min_x), int(min_y)), (int(max_x), int(max_y)), (255, 0, 0), 1)
+
+    for j in range(len(line[i])):
+
+        x = return_x_or_y(line[i][j], 1)
+
+        y = return_x_or_y(line[i][j], 2)
+
+        if x == 0.0 and y == 0.0:
+            continue
+
+        if temp_x == 0.0 and temp_y == 0.0:
+            temp_x = x
+
+            temp_y = y
+
+        cv2.line(SR_img, (int(temp_x), int(temp_y)), (int(x), int(y)), (0, 0, 0), 5)
+
+        cv2.imwrite(SR_data_directory_path + "/SR" + str(line_num) + "_" + str(direction) + ".bmp", SR_img)
+
+        temp_x = x
+
+        temp_y = y
+
+
+# 직선 판별 함수
+# 수정-> 직선 진행 방향 판별 알고리즘 변경
+# 2칸씩 띄어서 좌표 인식 -> 이건 꼭 필요한지 검증 필요/방향이 일치하는 퍼센트로 직선 유무를 판별하는데 좌표의 값이 많을 수록 확률이 정확해지기때문
+# 유의미한 좌표값을 받기 위해 만든 알고리즘 삭제/ 바로 좌표 받는다
+# 쓰레기 진행 방향 걸러주는 코드 삭제 -> 이 코드가 ㅇ 과 같은 방향의 변화가 많은 값들을 직선으로 판별 되게 만들어준다.
+
+def linear_or_not(line_num):
+    print("\n" + str(line_num) + "번째 획 검사")
+    # Find Data flow of increment or decrement
+
+    count1 = 0
+
+    count2 = 0
+
+    count3 = 0
+
+    count4 = 0
+
+    # x,y 좌표 리스트에  line 데이터 삽입
+
+    x = list()
+
+    y = list()
+
+    for i in range(len(line[line_num])):
+
+        if return_x_or_y(line[line_num][i], 1) == 0.0:
+            break
+
+        x.append(return_x_or_y(line[line_num][i], 1))
+        y.append(return_x_or_y(line[line_num][i], 2))
+
+    diff_x = list()
+
+    diff_y = list()
+
+    status_x = list()
+
+    status_y = list()
+
+    Result = list()
+
+    temp_list = list()
+
+    # 우선 저장된 x,y 좌표들간의 차이값을 구해서 저장한다
+
+    print(len(x))  # 개수에 따라서 차이를 준다.
+
+    # 좌표 데이터 개수에 따라 몇칸씩 띄어서 계산할지 정해줌
+    # if len(x) > 15:
+    #
+    #     plus_num = 3
+    # else:
+    plus_num = 1
+
+    i = 0
+
+    while i < len(x):
+
+        if i != len(x) - 1:
+
+            dif = x[i + 1] - x[i]
+
+            dif2 = y[i + 1] - y[i]
+
+            diff_x.append(dif)
+
+            diff_y.append(dif2)
+
+            i = i + plus_num
+
+            if i >= len(x):
+                i = len(x)
+
+
+
+
+
+        else:
+
+            break
+            dif = x[i] - x[i - 1]
+
+            dif2 = y[i] - y[i - 1]
+
+            diff_x.append(dif)
+
+            diff_y.append(dif2)
+
+            i = i + plus_num
+
+            if i >= len(x):
+                i = len(x)
+
+            # out of range -> 해결 방안 찾기  + 2
+
+    # 저장된 차이값에서 직선의 진행방향이 어딘지 정한다 & 상태는 status 리스트에 저장
+
+    for j in range(len(diff_x)):
+        if diff_x[j] == 0.0:
+            continue
+
+        if diff_x[j] > 0.0:
+            if -1.0 <= diff_y[j] / diff_x[j] <= 1.0:
+                Result.append('1')
+            elif -1.0 < diff_y[j] / diff_x[j]:
+                Result.append('3')  # 3
+            elif 1.0 > diff_y[j] / diff_x[j]:
+                Result.append('4')
+
+        elif diff_x[j] < 0.0:
+            if -1.0 <= diff_y[j] / diff_x[j] <= 1.0:
+                Result.append('2')
+
+            elif -1.0 < diff_y[j] / diff_x[j]:
+                Result.append('4')  # 4
+            elif 1.0 > diff_y[j] / diff_x[j]:
+                Result.append('3')
+
+        # if diff_x[j] > 0.0:
+        #     if -1.0< diff_x[j]/diff_y[j] < 1.0:
+        #         Result.append('1')
+        # elif diff_x[j] < 0.0:
+        #     if -1.0< diff_x[j]/diff_y[j] < 1.0:
+        #         Result.append('2')
+
+    #         if diff_x[j] > 0.2:
+    #
+    #             status_x.append('1')
+    #
+    #         elif diff_x[j] < -0.2:
+    #
+    #             status_x.append('2')
+    #
+    #         else: # 0.0 -0.5 0.5
+    #
+    #             status_x.append('None')
+    #
+    # #NONE 값을 0으로 잡는것보다 좀더 범위를 늘려야 될 것같다.
+    #
+    #         if diff_y[j] > 0.2:
+    #
+    #             status_y.append('4')
+    #
+    #         elif diff_y[j] < -0.2:
+    #
+    #             status_y.append('3')
+    #
+    #         else:
+    #
+    #             status_y.append('None')
+
+    # 직선의 방향 상태가 저장된 status 리스트에서 유의미한 값들만 추출
+
+    # for k in range(len(status_y)):
+    #
+    #     # print('x = '+status_x[k]+'      y = '+status_y[k])
+    #
+    #     if status_x[k] == 'None' and status_y[k] != 'None':
+    #
+    #         Result.append(status_y[k])
+    #
+    #     elif status_y[k] == 'None' and status_x[k] != 'None':
+    #
+    #         Result.append(status_x[k])
+
+    print('Result')
+
+    print(Result)
+
+    # Result 수정 요
+
+    # 직선 여부 판별하기->결과가 담긴 Result 리스트 내부의 숫자들의 분포 비율을 따진다
+
+    for r in range(len(Result)):
+
+        if Result[r] == '1':
+
+            count1 += 1
+
+        elif Result[r] == '2':
+
+            count2 += 1
+
+        elif Result[r] == '3':
+
+            count3 += 1
+
+        elif Result[r] == '4':
+
+            count4 += 1
+
+    # 1,2,3,4번의 결과 분포를 계산하여 직선인지 아닌지 판별한다.
+
+    Rlength = len(Result)
+
+    # 쓰레기 진행 방향을 걸러 내기 위한 코드
+    
+    # for i in range(len(Result)):
+    #     if i == 0:
+    #         temp_result = Result[i]
+    #
+    #     elif temp_result != Result[i]:
+    #
+    #         if same_count < 2:
+    #             Rlength -= 1
+    #
+    #         same_count = 0
+    #         temp_result = Result[i]
+    #
+    #     else:
+    #         same_count += 1
+    #         temp_result = Result[i]
+
+    ratio1 = 0
+    ratio2 = 0
+    ratio3 = 0
+    ratio4 = 0
+
+    if Rlength != 0:
+        ratio1 = (count1 / Rlength) * 100  # 오른쪽
+
+        ratio2 = (count2 / Rlength) * 100  # 왼쪽
+
+        ratio3 = (count3 / Rlength) * 100  # 위
+
+        ratio4 = (count4 / Rlength) * 100  # 아래
+
+    # 각 ratio 변수들의 값이 90퍼센트 이상이면 직선이다
+
+    # 그 이외의 경우는 1,2,3,4번이 조합된 경우이므로 직선이 아니다
+
+    # 1 = 가로 직선 # 2 = 세로 직선
+
+    if ratio1 >= 70:
+
+        print('직선이다 방향 1')
+
+        temp_list.append(line_num)
+
+        temp_list.append(1)
+        draw_SR(line_num, 1)
+
+    elif ratio2 >= 70:
+
+        print('직선이다 방향 2')
+
+        temp_list.append(line_num)
+
+        temp_list.append(1)
+        draw_SR(line_num, 1)
+
+    elif ratio3 >= 70:
+
+        print('직선이다 방향 3')
+
+        temp_list.append(line_num)
+
+        temp_list.append(2)
+        draw_SR(line_num, 2)
+
+    elif ratio4 >= 70:
+
+        print('직선이다 방향 4')
+
+        temp_list.append(line_num)
+
+        temp_list.append(2)
+        draw_SR(line_num, 2)
+
+    else:
+        print('위의 좌표는 직선이 아닙니다')
+        draw_SR(line_num, 0)
+        return 0
+
+    straight_line.append(temp_list)
+
+    diff_x.clear()
+
+    diff_y.clear()
+
+    status_x.clear()
+
+    status_y.clear()
+
+    Result.clear()
+
+
+print("--직선 획 검출시작--")
+for i in range(len(line)):
+
+    if line[i][0] == 0:
+        break
+    linear_or_not(i)
+
+print("\n--직선 라인 인덱스 정보--")
+
+print(straight_line)
+
+# 1열:라인 인덱스 번호, 2열은 1 = 가로 , 2 = 세로 직선
+
+temporary_S = list()  # 모음 후보를 저장하는 리스트 총 6개(case 6)로 구성
+
+# 인접한 직선을 확인하는 함수
+
+temporary_S_line = list()  # 아래 함수를 사용 하려면 그전 초기화 필수
+
+temporary_S_1 = list()  # 모음 후보군이 두개 나올 경우 사용
+
+
+def sensitivity_SR(index, list_line, sensitivity, direction):  # 민감도 설정 알고리즘
+    d_x = (max_min_data[0] - max_min_data[1]) / sensitivity
+
+    d_y = (max_min_data[2] - max_min_data[3]) / sensitivity
+
+    if direction == 2:  # 세로직선
+
+        if index == 0:
+            if return_x_or_y(line[list_line][line_stat[list_line][index]], 1) + d_x < 0.0:
+                return 0.0
+            elif return_x_or_y(line[list_line][line_stat[list_line][index]], 1) + d_x > max_min_data[0]:
+                return max_min_data[0]
+            else:
+                return (return_x_or_y(line[list_line][line_stat[list_line][index]], 1) + d_x)
+                # max_x,min_x 값 삽입, 감도 설정 알고리즘 추가
+
+        elif index == 1:
+            if return_x_or_y(line[list_line][line_stat[list_line][index]], 1) - d_x < 0.0:
+                return 0.0
+            elif return_x_or_y(line[list_line][line_stat[list_line][index]], 1) - d_x < max_min_data[1]:
+                return max_min_data[1]
+            else:
+                return (return_x_or_y(line[list_line][line_stat[list_line][index]], 1) - d_x)
+                # max_x,min_x 값 삽입, 감도 설정 알고리즘 추가
+        else:
+            return (return_x_or_y(line[list_line][line_stat[list_line][index]], 2))  # 나머지 y 값을 삽입
+
+    else:  # 가로직선
+        if index == 2:
+            if return_x_or_y(line[list_line][line_stat[list_line][index]], 2) + d_y < 0.0:
+                return 0.0
+            elif return_x_or_y(line[list_line][line_stat[list_line][index]], 2) + d_y > max_min_data[2]:
+                return max_min_data[2]
+            else:
+                return (return_x_or_y(line[list_line][line_stat[list_line][index]], 2) + d_y)
+                # max_x,min_x 값 삽입, 감도 설정 알고리즘 추가
+
+        elif index == 3:
+            if return_x_or_y(line[list_line][line_stat[list_line][index]], 2) - d_y < 0.0:
+                return 0.0
+            elif return_x_or_y(line[list_line][line_stat[list_line][index]], 2) - d_y < max_min_data[3]:
+                return max_min_data[3]
+            else:
+                return (return_x_or_y(line[list_line][line_stat[list_line][index]], 2) - d_y)
+                # max_x,min_x 값 삽입, 감도 설정 알고리즘 추가
+        else:
+            return (return_x_or_y(line[list_line][line_stat[list_line][index]], 1))  # 나머지 y 값을 삽입
+
+
+def Check_close_Line(line_index_num, before_Line_name_num, max_find):  # line_index_num은 직선 인덱스 이용하기
+
+    if max_find == 0:
+        return 0
+
+    sensitivity = 25.0  # 민감도 설정 변수
+
+    total_line_stat = list()  # [0] -> 가로 직선 [1] -> 세로 직선을 저장
+
+    base_line_stat = list()  # 매개변수로 받은 line_index_num 기준 직선 설정
+
+    test_base_index = straight_line[line_index_num][0]
+
+    for i in range(len(temporary_S_line)):  # 반복하는 결과 저장을 막기 위해서 구현
+        if temporary_S_line[i] == test_base_index:
+            return 0
+
+    temporary_S_line.append(test_base_index)  # 현재 line index 저장
+
+    for i in range(4):
+        base_line_stat.append(sensitivity_SR(i, test_base_index, sensitivity, straight_line[line_index_num][1]))
+
+    print("base line:")
+    print(base_line_stat)
+
+    # Line[i]와 만나는 직선 찾기
+
+    # 직선 라인 중 만나는 직선 찾기
+
+    for i in range(len(straight_line)):
+
+        total_line_stat = list()
+        another_line_stat = list()
+        check_close = 0
+
+        if i == before_Line_name_num:  # 중복된 직선을 확인하지 않기 위해서 넣은 코드
+            continue
+
+        elif i == line_index_num:  # 자기 자신을 확인하지 않기 위해서 넣은 코드
+            continue
+
+        else:
+
+            test_index = straight_line[i][0]
+
+            for j in range(4):
+                another_line_stat.append(sensitivity_SR(j, test_index, sensitivity, straight_line[i][1]))
+
+            print("another line:")
+            print(another_line_stat)
+
+            if straight_line[line_index_num][1] == 1:
+
+                total_line_stat.append(base_line_stat)
+
+                total_line_stat.append(another_line_stat)
+
+            else:
+
+                total_line_stat.append(another_line_stat)
+
+                total_line_stat.append(base_line_stat)
+
+            # 인접 직선 확인
+
+            if total_line_stat[1][1] <= total_line_stat[0][0] and total_line_stat[1][0] >= total_line_stat[0][0]:
+
+                if total_line_stat[1][3] <= total_line_stat[0][2] and total_line_stat[1][2] >= total_line_stat[0][2]:
+                    check_close = 1
+
+
+
+                elif total_line_stat[1][3] <= total_line_stat[0][3] and total_line_stat[1][2] >= total_line_stat[0][3]:
+
+                    check_close = 1
+
+
+
+                else:
+
+                    continue
+
+
+
+            elif total_line_stat[1][1] <= total_line_stat[0][1] and total_line_stat[1][0] >= total_line_stat[0][1]:
+
+                if total_line_stat[1][3] <= total_line_stat[0][2] and total_line_stat[1][2] >= total_line_stat[0][2]:
+
+                    check_close = 1
+
+
+
+                elif total_line_stat[1][3] <= total_line_stat[0][3] and total_line_stat[1][2] >= total_line_stat[0][3]:
+
+                    check_close = 1
+
+
+
+                else:
+
+                    continue
+
+
+
+            elif total_line_stat[0][1] <= total_line_stat[1][1] and total_line_stat[1][0] <= total_line_stat[0][0]:
+
+                if total_line_stat[0][3] <= total_line_stat[1][3] and total_line_stat[1][3] <= total_line_stat[0][2]:
+
+                    check_close = 1
+
+
+
+                elif total_line_stat[0][3] <= total_line_stat[1][2] and total_line_stat[1][2] <= total_line_stat[0][2]:
+
+                    check_close = 1
+
+
+
+                else:
+
+                    continue
+
+
+
+            else:
+
+                continue
+
+            if check_close == 1:  # 만나는 직선이 존재 할때
+                Check_close_Line(i, line_index_num, -1)
+
+
+# 각 케이스의 결과를 담고있는 리스트 생성
+
+result_each_case = list()
+
+
+# case 1번을 확인하는 메소드
+
+def Check_case_1():
+    temporary_list = list()  # 조건을 만족하는 임의의 직선을 저장하기 위한 리스트
+
+    print("--case1 확인--")
+
+    # 반복문을 이용하여 세로직선 찾기
+
+    for i in range(len(straight_line)):
+
+        check_index = 99
+
+        if straight_line[i][1] == 2:  # 세로 직선일때
+
+            check_index = straight_line[i][0]
+
+            if line_stat[check_index][6] == 1 and line_stat[check_index][9] == 1:
+
+                if line_stat[check_index][12] == 1:  # 조건 만족
+
+                    temporary_list.append(i)
+
+    temp_size = len(temporary_list)
+
+    if temp_size != 0:  # 조건을 만족하는 세로 직선 존재
+        result_each_case.append(1)
+
+        if temp_size == 1:  # 만족하는 세로 직선 1개
+            Check_close_Line(temporary_list[0], 99, 2)  # 인접한 직선 찾기
+
+
+        elif temp_size == 2:  # 만족하는 세로 직선 2개
+            # 제일 오른쪽 직선을 찾아 인접 직선 찾기 시작
+
+            dummy_num = return_x_or_y(
+                line[straight_line[temporary_list[0]][0]][line_stat[straight_line[temporary_list[0]][0]][0]], 1)
+
+            if dummy_num < return_x_or_y(
+                    line[straight_line[temporary_list[1]][0]][line_stat[straight_line[temporary_list[1]][0]][0]], 1):
+                Check_close_Line(temporary_list[1], 99, 3)
+                if len(temporary_S_line) < 2:
+                    Check_close_Line(temporary_list[0], 99, 3)
+
+            else:
+                Check_close_Line(temporary_list[0], 99, 3)  # 인접한 직선 찾기
+                if len(temporary_S_line) < 2:
+                    Check_close_Line(temporary_list[1], 99, 3)
+
+        else:
+            print("case1 만족하는 직선 검출 실패\n")
+            result_each_case.pop()
+            result_each_case.append(0)
+
+        print("case1 만족하는 직선 검출 완료, 모음 후보군 설정 완료")
+        print(temporary_S_line)
+
+
+    else:  # 조건을 만족 x
+        result_each_case.append(0)
+        print("case1 만족하는 직선 검출 실패\n")
+
+    temporary_S.append(temporary_S_line)  # 모음후보군 설정 완료
+
+
+# case 2번을 확인하는 메소드
+
+def Check_case_2():
+    check_max_y_index = 99
+
+    print("\n--case2 확인--")
+
+    # 반복문을 이용하여 가로직선 찾기
+
+    for i in range(len(straight_line)):
+
+        check_index = 99
+
+        if straight_line[i][1] == 1:  # 가로 직선일때
+
+            check_index = straight_line[i][0]
+
+            if line_stat[check_index][7] == 1 and line_stat[check_index][8] == 1:  # 조건 1번
+                check_max_y_index = i
+
+                if line_stat[check_index][9] == 1:  # 조건 만족
+
+                    check_max_y_index = i
+
+                    # max_y =0
+
+                    # for j in range(len(straight_line)):
+
+                    #     if straight_line[j][1]  !=1:
+                    #         continue
+
+                    #     if max_y < return_x_or_y(line[straight_line[j][0]][line_stat[straight_line[j][0]][2]],2):
+
+                    #         max_y = return_x_or_y(line[straight_line[j][0]][line_stat[straight_line[j][0]][2]],2)
+
+                    #         check_max_y_index = j
+
+                    #     else:
+
+                    #         continue
+
+
+
+            elif line_stat[check_index][10] == 1 and line_stat[check_index][11] == 1:  # 조건 2번
+
+                # if line_stat[check_index][12] == 1:#조건 만족
+
+                check_max_y_index = i
+                # max_y =0
+
+                # for j in range(len(straight_line)):
+
+                #     if straight_line[j][1]  !=1:
+                #         continue
+
+                #     if max_y < return_x_or_y(line[straight_line[j][0]][line_stat[straight_line[j][0]][2]],2):
+
+                #         max_y = return_x_or_y(line[straight_line[j][0]][line_stat[straight_line[j][0]][2]],2)
+
+                #         check_max_y_index = j
+
+                #     else:
+
+                #         continue
+
+            else:
+
+                continue
+
+    if check_max_y_index == 99:  # 조건을 만족 x
+
+        result_each_case.append(0)
+
+        print("case2 만족하는 직선 검출 실패\n")
+
+
+
+    else:  # 조건을 만족
+
+        result_each_case.append(1)
+
+        Check_close_Line(check_max_y_index, 99, 2)  # 인접한 직선 찾기
+
+        print("case2 만족하는 직선 검출 완료, 모음 후보군 설정 완료")
+
+        print(temporary_S_line)
+
+    temporary_S.append(temporary_S_line)  # 모음후보군 설정 완료
+
+
+# case 3번을 확인하는 메소드
+
+def Check_case_3():
+    # case 1, case 2 가 참인지 확인
+    print("\n--case3 확인--")
+
+    if result_each_case[0] == 1 and result_each_case[1] == 1:
+
+        # 1번 모음 후보 + 2번 모음 후보를 합치는 방법으로 구현
+        temporary_S.append(temporary_S[0] + temporary_S[1])
+
+        print("case3 만족 , 모음 후보군 설정 완료")
+
+        result_each_case.append(1)
+
+    else:
+        print("case3 만족하는 직선 검출 실패\n")
+
+        result_each_case.append(0)
+
+        temporary_S.append(temporary_S_line)
+
+
+def Check_case_4():
+    print("\n--case4 확인--")
+
+    check1 = 0
+    check2 = 0
+    check_max_x_index = 99
+
+    temp_1 = list()
+    temp_2 = list()
+    temporary_list = list()
+
+    for i in range(len(straight_line)):
+
+        if straight_line[i][1] == 2:  # 세로 직선일때
+
+            check_index = straight_line[i][0]
+
+            if line_stat[check_index][6] == 1 and line_stat[check_index][9] == 1:
+                check1 = 1
+
+                temporary_list.append(i)
+
+    for i in range(len(line)):
+        temp_1.append(i)
+
+    if result_each_case[2] == 1:  # case3과 중복을 줄이기 위해
+
+        for i in range(len(temporary_S)):
+
+            if i == 2:
+
+                for j in range(len(temporary_S[i])):
+                    temp_2.append(temporary_S[i][j])
+
+        if line_stat[i][4] == 1 or line_stat[i][5] == 1:  # 초성위치(0,1) 획들 없애기
+            temp_2.append(i)
+
+
+    else:
+
+        for i in range(len(line)):
+
+            if line_stat[i][4] == 1 or line_stat[i][5] == 1:  # 초성위치(0,1) 획들 없애기
+
+                temp_2.append(i)
+
+            if line_stat[i][6] == 1 and line_stat[i][9] == 1:  # 모음위치(2,5) 획들 없애기
+                temp_2.append(i)
+
+    temp_1 = list(set(temp_1) - set(temp_2))
+
+    if not temp_1:
+
+        check2 = 0
+
+    else:
+        for i in temp_1:  # 종성위치에 획이 존재하는지 판별
+
+            if line_stat[i][10] == 1 and line_stat[i][11] == 1:
+                check2 = 1
+
+            if line_stat[i][11] == 1 and line_stat[i][12] == 1:
+                check2 = 1
+
+    if check1 == 1 and check2 == 1:
+
+        result_each_case.append(1)
+
+        temp_size = len(temporary_list)
+
+        if temp_size != 0:  # 조건을 만족하는 세로 직선 존재
+            # result_each_case.append(1)
+
+            if temp_size == 1:  # 만족하는 세로 직선 1개
+                Check_close_Line(temporary_list[0], 99, 2)  # 인접한 직선 찾기
+
+
+            elif temp_size == 2:  # 만족하는 세로 직선 2개
+                # 제일 오른쪽 직선을 찾아 인접 직선 찾기 시작
+
+                dummy_num = return_x_or_y(
+                    line[straight_line[temporary_list[0]][0]][line_stat[straight_line[temporary_list[0]][0]][0]], 1)
+
+                if dummy_num < return_x_or_y(
+                        line[straight_line[temporary_list[1]][0]][line_stat[straight_line[temporary_list[1]][0]][0]],
+                        1):
+                    Check_close_Line(temporary_list[1], 99, 3)
+                    if len(temporary_S_line) < 2:
+                        Check_close_Line(temporary_list[0], 99, 3)
+
+                else:
+                    Check_close_Line(temporary_list[0], 99, 3)  # 인접한 직선 찾기
+                    if len(temporary_S_line) < 2:
+                        Check_close_Line(temporary_list[1], 99, 3)
+
+            else:
+                print("case4 만족하는 직선 검출 실패\n")
+                result_each_case.pop()
+                result_each_case.append(0)
+
+        print("case4 만족 , 모음 후보군 설정 완료")
+
+        # print(temporary_S_line)
+
+    else:
+
+        result_each_case.append(0)
+
+        print("case4 만족하는 직선 검출 실패\n")
+
+    temporary_S.append(temporary_S_line)
+
+
+Check_case_5_counter = 0
+
+
+def Check_case_5():
+    # case 5는 R의 영역 3,4,5에 가로 직선이 존재 하고 6,7,8 영역에 직선인 SR(가로 OR 세로)이 존재하거나 직선이 아닌 SR이 존재한다
+    check_max_y_index = 99
+    check_max_y_index_count2 = list()
+    print("\n--case5 확인--")
+    check1 = 0
+    check2 = 0
+    count = 0
+
+    temp_count_list = list()  # count 된 직선들을 구분 [10][4] -> 여유있게 10개 저장할것
+    count_list = [[0 for i in range(5)] for j in range(4)]  # 모음 후보군 직선
+    count_index = list()  # 인덱스 저장
+    y_range = (max_min_data[2] - max_min_data[3])/ 9  # max y / 9
+
+    for i in range(len(straight_line)):  # R의 영역으로 ㅡ 의 위치를 정하면 R의 전범위가 가능성이 있기 떄문에 y축 길이 기준으로 2/9 < y_max < 7/9 으로 정했다.
+
+        check_index = 99
+
+        if straight_line[i][1] == 1:  # 가로 직선일때
+
+            check_index = straight_line[i][0]
+
+            # 범위를 지정해서 확인 한다. -> sensitiviy_SR 함수를 이용해서 Y좌표를 가져옴
+            for j in range(4):
+                temp_count_list.append(
+                    sensitivity_SR(j, check_index, max_min_data[2], straight_line[i][1]))  # max x , min x, max y, min y
+
+            print(temp_count_list)
+            print('---y_range---')
+            print("min : %f max : %f" %(y_range*2.0, y_range*7.0))
+            print(max_min_data[3])
+
+            if (temp_count_list[2] <= (y_range * 7.0 + max_min_data[3])) and (temp_count_list[2] >= (y_range * 2.0 + max_min_data[3])):
+                check1 = 1
+                count = count + 1  # 영역 안에 들어오는 가로 직선의 개수를 확인한다.
+                count_list.append(temp_count_list)
+
+                count_index.append(i)
+
+                print(count_index)
+            temp_count_list =list()
+
+            #
+            # if (line_stat[check_index][7] == 1 and line_stat[check_index][8] == 1) \
+            #         or (line_stat[check_index][8] == 1 and line_stat[check_index][9] == 1):
+            #
+            #
+            #         max_x = 0
+            #
+            #         for j in range(len(straight_line)):
+            #
+            #             if max_x < return_x_or_y(line[straight_line[j][0]][line_stat[straight_line[j][0]][0]], 1):
+            #                 max_x = return_x_or_y(line[straight_line[j][0]][line_stat[straight_line[j][0]][0]], 1)
+            #
+            #                 check_max_y_index = j
+    global Check_case_5_counter
+    # count는 1~3 까지의 숫자이다.
+    if count == 1:
+        check_max_y_index = count_index[0]
+
+
+    elif count == 2:
+
+        Check_case_5_counter = 1
+
+        for i in range(2):
+            check_max_y_index_count2.append(count_index[i])
+
+
+
+
+    elif count == 3:
+
+        for i in range(3):  # 크기 순으로 정렬
+            for j in range(2):
+                if count_list[j][2] < count_list[j + 1][2]:
+                    temp = count_list[j]
+                    count_list[j] = count_list[j + 1]
+                    count_list[j + 1] = temp
+
+                    temp2 = count_index[j]
+                    count_index[j] = count_index[j + 1]
+                    count_index[j + 1] = temp2
+
+        check_max_y_index = count_index[1]
+
+
+    elif count > 3:
+        check1 = 0
+
+    for i in range(len(line_stat)):
+        if line_stat[i][10] == 1 or line_stat[i][11] == 1 or line_stat[i][12] == 1:
+            check2 = 1
+
+    global temporary_S_line
+
+    if check1 == 1 and check2 == 1:
+
+         if count == 2:  # 반복문 이용 후보 두개 넣음
+             for i in range(2):
+        
+                 if i == 0:
+                     Check_close_Line(check_max_y_index_count2[i], 99, 5)
+        
+                     temporary_S.append(temporary_S_line)
+        
+                     temporary_S_line = list()
+        
+                 if i == 1:
+                     Check_close_Line(check_max_y_index_count2[i], 99, 5)
+        
+                     temporary_S_1.append(temporary_S_line)  # 두번째 모음 후보군은 temporary_S_1에 저장
+        
+                     print("case 5번의 두번째 모음 후보군")
+                     print(temporary_S_1)
+        
+                     temporary_S_line = list()
+
+
+#        if count == 2:  # 반복문 이용 후보 두개 넣음
+#            for i in range(2):
+#
+#                if i == 0:
+#                    Check_close_Line(check_max_y_index_count2[i], 99, 5)
+#
+#                    for i in range(len(temporary_S_line)): # 모음이 맡는지 확인하는 이중장치 모음후보직선중 세로 직선이 R의 0을 지나면 모음이 아님
+#                        for j in range(len(straight_line)):
+#                            if straight_line[j][0] == temporary_S_line[i]:
+#
+#                                if straight_line[j][1] == 2: #세로직선인지 확인
+#
+#
+#                                    if line_stat[temporary_S_line[i]][4] == 0:  # R의 0 영역을 지나는지 확인.
+#
+#                                        temporary_S.append(temporary_S_line)
+#
+#                                    else:
+#
+#                                        Check_case_5_counter = 0
+#
+#
+#
+#                    temporary_S_line = list()
+#
+#                if i == 1:
+#                    Check_close_Line(check_max_y_index_count2[i], 99, 5)
+#
+#                    for i in range(len(temporary_S_line)):
+#
+#                        for j in range(len(straight_line)):
+#
+#                            if straight_line[j][0] == temporary_S_line[i]:
+#                                if straight_line[j][1] == 2:
+#
+#                                    if line_stat[temporary_S_line[i]][4] == 0:# 체크
+#
+#                                        if Check_case_5_counter == 0:
+#                                            temporary_S.append(temporary_S_line)
+#
+#
+#
+#                                        else:
+#                                            temporary_S_1.append(temporary_S_line)
+#
+#
+#                                    else:
+#                                        Check_case_5_counter = 0
+
+
+
+                    temporary_S_line = list()
+
+
+
+
+        else:
+            Check_close_Line(check_max_y_index, 99, 5)
+            temporary_S.append(temporary_S_line)
+
+        print("case5 만족 , 모음 후보군 설정 완료")
+        result_each_case.append(1)
+
+    else:
+        print("case5 만족하는 직선 검출 실패\n")
+        result_each_case.append(0)
+        temporary_S.append(temporary_S_line)
+
+
+Check_case_6_counter = 0
+
+
+def Check_case_6():
+    # case 4, case 5 가 참인지 확인
+    print("\n--case6 확인--")
+
+    if result_each_case[3] == 1 and result_each_case[4] == 1:
+
+        if Check_case_5_counter == 1:
+            global Check_case_6_counter
+
+            Check_case_6_counter = 1
+
+            temporary_S.append(temporary_S[3] + temporary_S[4])
+            temporary_S_1.append(temporary_S[3] + temporary_S_1[0])  # case5 두번째 모음후보군은 따로 저장
+
+            print("case 6번의 두번째 모음 후보군")
+            print(temporary_S_1)
+
+
+        else:
+
+            # 1번 모음 후보 + 2번 모음 후보를 합치는 방법으로 구현
+            temporary_S.append(temporary_S[3] + temporary_S[4])
+
+        print("case6 만족 , 모음 후보군 설정 완료")
+
+        result_each_case.append(1)
+
+    else:
+        print("case6 만족하는 직선 검출 실패\n")
+        result_each_case.append(0)
+        temporary_S.append(temporary_S_line)
+
+
+print("\n모음 후보군 설정 시작\n")
+
+Check_case_1()
+temporary_S_line = list()  # 인접 직선 함수를 사용 하려면 그전 초기화 필수
+
+Check_case_2()
+temporary_S_line = list()  # 인접 직선 함수를 사용 하려면 그전 초기화 필수
+
+Check_case_3()
+temporary_S_line = list()  # 인접 직선 함수를 사용 하려면 그전 초기화 필수
+
+Check_case_4()
+temporary_S_line = list()  # 인접 직선 함수를 사용 하려면 그전 초기화 필수
+
+Check_case_5()
+temporary_S_line = list()  # 인접 직선 함수를 사용 하려면 그전 초기화 필수
+
+Check_case_6()
+temporary_S_line = list()  # 인접 직선 함수를 사용 하려면 그전 초기화 필수
+
+print("\n--설정된 모음 후보군-- ")
+
+print(temporary_S)
+
+print(result_each_case)
+
+
+# print("\n 인공지능 모델 실행\n")
+
+
+# final_result = temp_model.run_model()
+
+# print("\n\nFinal_result_From candidated")
+# print(final_result)
+
+
+##bmp가 저장된 디렉토리 비우기
+# file_list = os.listdir(bmp_data_directory_path)
+#
+# for i in range(len(file_list)):
+#    os.remove(bmp_data_directory_path+'/'+file_list[i])
+
+
+# 모음 후보군 외의 모든 획을 이미지로 생성
+
+def resize_img(vowel_candidate, vowel_or_not):
+    img_width = 0
+    img_height = 0
+
+    img_max_x = 0.0
+    img_min_x = 1000.0
+    img_max_y = 0.0
+    img_min_y = 1000.0
+
+    num = 0
+    num1 = 0
+
+    temp_list = list()
+
+    # 모음 후보군의 최대 최소 x,y를 구하여 크기 구하기
+    # ceperate making vowel_candiate and not_vowel
+
+    if vowel_or_not == 1:  # it means vowel
+
+        if Check_case_5_counter == 1 and vowel_candidate == 5:
+
+            print("case 5 2번째 모음 후보군 저장:")
+            temp_list = temporary_S_1[0]
+
+        elif vowel_candidate == 6:
+            print("case 6 2번째 모음 후보군 저장:")
+            temp_list = temporary_S_1[1]
+
+        else:
+            temp_list = temporary_S[vowel_candidate]
+
+
+    else:  # it means not vowel
+
+        if vowel_candidate == 0 or vowel_candidate == 1 or vowel_candidate == 2:  # case 1,2,3인 경우
+
+            for i in range(len(line)):  # 총획의 수
+                save_continue = 1
+
+                for j in range(len(temporary_S[vowel_candidate])):
+
+                    if i == temporary_S[vowel_candidate][j]:  # 모음 후보군 획은 제외
+                        save_continue = 0
+
+                if save_continue == 1:
+                    temp_list.append(i)
+
+        if vowel_candidate == 3:  # case 4인 경우
+
+            temp1 = temporary_S[vowel_candidate]
+            temp2 = list()  # 후보군을 저장하기 위한 임시리스트
+            temp3 = list()  # 후보군을 저장하기 위한 임시리스트
+
+            for i in range(len(line)):
+                temp2.append(i)
+
+            temp2 = list(set(temp2) - set(temp1))  # 모음후보군 없애기
+
+            for i in temp2:
+
+                if line_stat[i][10] == 1 or line_stat[i][11] == 1 or line_stat[i][12] == 1:  # 종성 먼저 추출
+
+                    if line_stat[i][4] != 1 or line_stat[i][5] != 1:  # 초성 위치 획 제외
+
+                        temp3.append(i)
+
+                    if vowel_or_not == 2:  # 종성 저장
+
+                        temp_list.append(i)
+
+            temp3 = list(set(temp2) - set(temp3))  # 초성후보군만 남김
+
+            if vowel_or_not == 0:  # 초성 저장
+
+                for j in temp3:
+                    temp_list.append(j)
+
+        if vowel_candidate >= 4:  # case 5,6인 경우
+
+            reference_line = 0
+
+            if vowel_candidate == 4 or (vowel_candidate == 5 and Check_case_5_counter != 1):  # case 5,6
+                temp1 = temporary_S[vowel_candidate]
+
+            elif Check_case_5_counter == 1 and vowel_candidate == 5:  # case 5에서 두번째 모음 후보
+                temp1 = temporary_S_1[0]
+
+            else:  # case 6에서 두번째 모음 후보
+                temp1 = temporary_S_1[1]
+
+            temp2 = list()
+
+            for i in range(len(straight_line)):
+
+                if straight_line[i][1] == 1:  # 가로직선일때
+
+                    for j in temp1:
+
+                        if straight_line[i][0] == j:
+                            reference_line = j
+
+            reference_y = return_x_or_y(line[reference_line][line_stat[reference_line][2]], 2)
+
+
+            for i in range(len(line)):
+                temp2.append(i)
+
+            temp2 = list(set(temp2) - set(temp1))  # 모음후보군 없애기
+
+            for i in temp2:
+
+                min_y = return_x_or_y(line[i][line_stat[i][3]], 2)
+
+                if min_y > reference_y:
+
+                    if vowel_or_not == 2:
+                        temp_list.append(i)
+
+                else:
+
+                    if vowel_or_not == 0:
+                        temp_list.append(i)
+
+    print(temp_list)
+
+    if not temp_list:
+
+        print("후보군 검출 실패")
+
+
+    else:
+
+        for i in range(len(temp_list)):
+
+            line_index_num = temp_list[i]
+
+            temp_max_x = return_x_or_y(line[line_index_num][line_stat[line_index_num][0]], 1)
+            temp_min_x = return_x_or_y(line[line_index_num][line_stat[line_index_num][1]], 1)
+            temp_max_y = return_x_or_y(line[line_index_num][line_stat[line_index_num][2]], 2)
+            temp_min_y = return_x_or_y(line[line_index_num][line_stat[line_index_num][3]], 2)
+
+            # 최대 최소 xy 구하기
+            if img_max_x < temp_max_x:
+                img_max_x = temp_max_x
+
+            if img_min_x > temp_min_x:
+                img_min_x = temp_min_x
+
+            if img_max_y < temp_max_y:
+                img_max_y = temp_max_y
+
+            if img_min_y > temp_min_y:
+                img_min_y = temp_min_y
+
+        # 이후 최대 최소 값으로 모음 후보군의 가로 세로 길이 구하기
+        img_width = int(img_max_x - img_min_x) + 3
+        img_height = int(img_max_y - img_min_y) + 3
+
+        if img_width > img_height:
+            img_total = img_width
+        else:
+            img_total = img_height
+
+        # print(img_max_x,img_min_x,img_max_y,img_min_y)
+        # print(img_width,img_height)
+
+        # 이미지 생성
+        candidate_img = np.zeros((img_total, img_total, 3), np.uint8) + 255
+
+        # 이미지 채우기
+        for i in range(len(temp_list)):
+            temp_x = 0.0
+            temp_y = 0.0
+            current_index = temp_list[i]
+
+            for j in range(len(line[current_index])):
+
+                x = return_x_or_y(line[current_index][j], 1) - img_min_x
+
+                y = return_x_or_y(line[current_index][j], 2) - img_min_y
+
+                if img_total == img_width:
+                    y += (img_total) / 2 - (img_height) / 2
+
+                else:
+                    x += (img_total) / 2 - (img_width) / 2
+
+                if temp_x == 0.0 and temp_y == 0.0:
+                    temp_x = x
+                    temp_y = y
+
+                cv2.line(candidate_img, (int(temp_x), int(temp_y)), (int(x), int(y)), (0, 0, 0), 3)
+
+                temp_x = x
+                temp_y = y
+
+        # 그린 이미지 출력
+        cv2.imshow('vowel_candidate', candidate_img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+        resized_img = cv2.resize(candidate_img, dsize=(28, 28), interpolation=cv2.INTER_AREA)
+        # cv2.imshow('resize_28x28', resized_img)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
+
+        if (Check_case_5_counter == 1 and vowel_candidate == 5) or vowel_candidate == 6:
+
+
+
+
+            if vowel_or_not == 1:
+                os.mkdir(bmp_data_directory_path + '/' + 'case' + str(vowel_candidate) + '/candidate1')
+
+
+
+
+                cv2.imwrite(bmp_data_directory_path + '/' + 'case' + str(vowel_candidate) + '/candidate1/' + str(
+                    vowel_candidate) + '_vowel_candiate(1).bmp', resized_img)
+                print("case" + str(vowel_candidate) + "의 모 음 후보군 bmp로 저장 성공\n")
+
+
+
+
+            elif vowel_or_not == 0:
+                cv2.imwrite(
+                    bmp_data_directory_path + '/' + 'case' + str(vowel_candidate) +'/candidate1' +'/consonant_candiate' + str(
+                        num) + '(1).bmp', resized_img)
+                print("case" + str(vowel_candidate) + "의 자음 후보군 bmp로 저장 성공\n")
+                num += 1
+
+
+
+
+            else:
+                cv2.imwrite(
+                    bmp_data_directory_path + '/' + 'case' + str(vowel_candidate)+ '/candidate1' + '/final consonant_candiate' + str(
+                        num) + '(1).bmp', resized_img)
+                print("case" + str(vowel_candidate) + "의 종성 후보군 bmp로 저장 성공\n")
+                num += 1
+
+
+
+
+
+
+
+        else:
+            global folder_make_check
+            if Check_case_5_counter == 1:
+                folder_make_check = 1
+
+
+
+
+            if vowel_or_not == 1:
+                if (vowel_candidate == 4 and folder_make_check == 1) or (vowel_candidate == 5 and folder_make_check == 1):
+                    os.mkdir(bmp_data_directory_path + '/' + 'case' + str(vowel_candidate+1) + '/candidate2')
+                    cv2.imwrite(bmp_data_directory_path + '/' + 'case' + str(vowel_candidate + 1) + '/candidate2/' + str(
+                        vowel_candidate + 1) + '_vowel_candiate.bmp', resized_img)
+
+                else:
+                    cv2.imwrite(bmp_data_directory_path + '/' + 'case' + str(vowel_candidate + 1) + '/' + str(
+                    vowel_candidate + 1) + '_vowel_candiate.bmp', resized_img)
+                print("case" + str(vowel_candidate + 1) + "의 모 음 후보군 bmp로 저장 성공\n")
+
+
+
+
+            elif vowel_or_not == 0:
+                if (vowel_candidate == 4 and folder_make_check == 1) or (vowel_candidate == 5 and folder_make_check == 1):
+                    cv2.imwrite(
+                        bmp_data_directory_path + '/' + 'case' + str(vowel_candidate + 1) + '/candidate2' +'/consonant_candiate' + str(
+                            num) + '.bmp', resized_img)
+
+                else:
+                    cv2.imwrite(
+                    bmp_data_directory_path + '/' + 'case' + str(vowel_candidate + 1) + '/consonant_candiate' + str(
+                        num) + '.bmp', resized_img)
+                print("case" + str(vowel_candidate + 1) + "의 자음 후보군 bmp로 저장 성공\n")
+                num += 1
+
+
+
+
+            else:
+                if (vowel_candidate == 4 and folder_make_check == 1) or (vowel_candidate == 5 and folder_make_check == 1):
+                    cv2.imwrite(
+                        bmp_data_directory_path + '/' + 'case' + str(
+                            vowel_candidate + 1) +'/candidate2' +'/final consonant_candiate' + str(
+                            num1) + '.bmp', resized_img)
+
+
+                else:
+                    cv2.imwrite(
+                    bmp_data_directory_path + '/' + 'case' + str(
+                        vowel_candidate + 1) + '/final consonant_candiate' + str(
+                        num1) + '.bmp', resized_img)
+                print("case" + str(vowel_candidate + 1) + "의 종성 후보군 bmp로 저장 성공\n")
+                num1 += 1
+
+
+# 모음 후보군이 설정된 case를 찾아 모음 후보군 이미지 생성및 resize
+
+folder_make_check = 0
+
+for i in range(len(result_each_case)):
+
+    if result_each_case[i] == 1:
+        resize_img(i, 1)  # 모음 저장
+        resize_img(i, 0)  # 자음 저장
+
+        if i == 3 or i == 4 or i == 5:
+            resize_img(i, 2)  # 종성 저장
+
+            if Check_case_5_counter == 1 and i == 4:  # case 5에서 모음 후보군이 2개 일때
+
+
+                resize_img(5, 1)  # 모음 저장
+                resize_img(5, 0)  # 자음 저장
+                resize_img(5, 2)  # 종성 저장
+
+                Check_case_5_counter = 0
+
+
+
+            if Check_case_6_counter == 1 and i == 5:  # case6 에서 모음 후보군이 2개 일때
+
+                resize_img(6, 1)  # 모음 저장
+                resize_img(6, 0)  # 자음 저장
+                resize_img(6, 2)  # 종성 저장
+
+                Check_case_6_counter = 0
+
+
